@@ -27,7 +27,31 @@ export default function RootLayout({
       <body
         className={`${geistSans.variable} ${geistMono.variable} antialiased`}
       >
+
+        <header className="w-full py-6 flex justify-center items-center">
+          <img src="/vigovia.png" alt="Vigovia Logo" className="h-16" />
+        </header>
         {children}
+
+        <footer className="w-full border-t mt-10 py-8">
+          <div className="w-auto mx-auto grid grid-cols-1 md:grid-cols-3 gap-8 px-50 text-center md:text-left">
+            <div>
+              <div className="font-bold text-lg mb-2">Vigovia Tech Pvt. Ltd</div>
+              <div className="text-sm text-gray-600">
+                Registered Office: Hd-109 Cinnabar Hills,<br />
+                Links Business Park, Karnataka, India.
+              </div>
+            </div>
+            <div>
+              <div className="font-bold text-lg mb-2">Contact</div>
+              <div className="text-sm text-gray-600">Phone: +91-9999999999</div>
+              <div className="text-sm text-gray-600">Email ID: Contact@Vigovia.Com</div>
+            </div>
+            <div className="flex flex-col items-center">
+              <img src="/vigovia.png" alt="Vigovia Logo" className="h-16" />
+            </div>
+          </div>
+        </footer>
       </body>
     </html>
   );

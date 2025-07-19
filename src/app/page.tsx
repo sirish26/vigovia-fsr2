@@ -1,103 +1,195 @@
-import Image from "next/image";
+'use client';
+import { useForm, useFieldArray } from 'react-hook-form';
+import { zodResolver } from '@hookform/resolvers/zod';
+import { z } from 'zod';
+import { useState, useEffect } from 'react';
+import { format, differenceInCalendarDays } from 'date-fns';
+import {Card,CardContent,CardHeader,CardTitle,} from '@/components/ui/card';
+import { Label } from '@/components/ui/label';
+import { Input } from '@/components/ui/input';
+import { Button } from '@/components/ui/button';
+import { Calendar } from '@/components/ui/calendar';
+import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
+import { cn } from '@/lib/utils';
+import { v4 as uuidv4 } from 'uuid';
+import { Select, SelectTrigger, SelectValue, SelectContent, SelectItem } from '@/components/ui/select';
+import { itinerarySchema, Activity, ItineraryFormData } from '@/components/itinerarySchema';
+import { Activities } from '@/components/Activities';
+import { Flights } from '@/components/Flights';
+import { Stays } from '@/components/Stays';
+import { pdf } from '@react-pdf/renderer';
+import { ItineraryPDF } from '@/components/ItineraryPDF';
 
-export default function Home() {
+
+const hotelOptions = ["Hotel Taj", "Hotel Oberoi", "Hotel Leela"];
+
+export default function HomePage() {
+  const [maxDays, setMaxDays] = useState(1);
+  const form = useForm({
+    resolver: zodResolver(itinerarySchema),
+    defaultValues: {
+      name: '', departureCity: '', arrivalCity: '',
+      departureDate: new Date(), returnDate: new Date(),
+      travelers: 1, days: []
+    },
+  });
+
+  const { register, handleSubmit, control, watch, setValue, formState: { errors } } = form;
+  const { fields, append, remove, update } = useFieldArray({ control, name: 'days' });
+  const departure = watch('departureDate');
+  const returnDate = watch('returnDate');
+
+  useEffect(() => {
+    setMaxDays(differenceInCalendarDays(returnDate, departure) + 1);
+  }, [departure, returnDate]);
+
+  const addDay = () => fields.length < maxDays && append({ activities: [] });
+
+  const addActivity = (dayIndex: number) => {
+    const day = fields[dayIndex];
+    const newActivities = [
+      ...day.activities,
+      {
+        time: 'Morning' as Activity["time"],
+        title: '',
+        description: '',
+        price: '',
+        id: uuidv4(),
+      },
+    ];
+    update(dayIndex, { ...day, activities: newActivities });
+  };
+
+  const addTransfer = (dayIndex: number) => {
+    const day = fields[dayIndex];
+    const departureDate = watch('departureDate');
+    const departureCity = watch('departureCity');
+    const arrivalCity = watch('arrivalCity');
+    const transferDate = new Date(departureDate);
+    transferDate.setDate(transferDate.getDate() + dayIndex);
+
+    const transfers = (day.transfers ?? []);
+    const newTransfers = [
+      ...transfers,
+      {
+        id: uuidv4(),
+        date: transferDate,
+        flightName: 'Indigo',
+        from: departureCity,
+        to: arrivalCity,
+      },
+    ];
+    update(dayIndex, { ...day, transfers: newTransfers });
+  };
+
+  const addStay = (dayIndex: number) => {
+    const day = fields[dayIndex];
+    const departureDate = watch('departureDate');
+    const returnDate = watch('returnDate');
+    const checkIn = new Date(departureDate);
+    checkIn.setDate(checkIn.getDate() + dayIndex);
+    const checkOut = new Date(checkIn);
+    checkOut.setDate(checkOut.getDate() + 1);
+    if (checkOut > returnDate) checkOut.setTime(returnDate.getTime());
+
+    const stays = (day.stays ?? []);
+    const newStays = [
+      ...stays,
+      {
+        id: uuidv4(),
+        checkIn,
+        checkOut,
+        hotel: hotelOptions[0],
+      },
+    ];
+    update(dayIndex, { ...day, stays: newStays });
+  };
+
+  const onSubmit = async (data: ItineraryFormData) => {
+    const blob = await pdf(<ItineraryPDF data={data} />).toBlob();
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = 'itinerary.pdf';
+    a.click();
+    URL.revokeObjectURL(url);
+    console.log('Itinerary generated successfully', data);
+  };
+
   return (
-    <div className="font-sans grid grid-rows-[20px_1fr_20px] items-center justify-items-center min-h-screen p-8 pb-20 gap-16 sm:p-20">
-      <main className="flex flex-col gap-[32px] row-start-2 items-center sm:items-start">
-        <Image
-          className="dark:invert"
-          src="/next.svg"
-          alt="Next.js logo"
-          width={180}
-          height={38}
-          priority
-        />
-        <ol className="font-mono list-inside list-decimal text-sm/6 text-center sm:text-left">
-          <li className="mb-2 tracking-[-.01em]">
-            Get started by editing{" "}
-            <code className="bg-black/[.05] dark:bg-white/[.06] font-mono font-semibold px-1 py-0.5 rounded">
-              src/app/page.tsx
-            </code>
-            .
-          </li>
-          <li className="tracking-[-.01em]">
-            Save and see your changes instantly.
-          </li>
-        </ol>
+    <main className="w-auto mx-auto py-10 px-50">
+      <Card className="mb-6">
+        <CardHeader>
+          <CardTitle className="text-gradient text-3xl font-bold text-cta">Form</CardTitle>
+        </CardHeader>
+        <CardContent>
+          <form onSubmit={handleSubmit(onSubmit)} className="grid gap-4">
+            <div className="grid grid-cols-2 gap-4">
+              <InputField label="Name" {...register('name')} />
+              <InputField label="Number of Travelers" type="number" {...register('travelers', { valueAsNumber: true })} />
+              <InputField label="Departure City" {...register('departureCity')} />
+              <InputField label="Arrival City" {...register('arrivalCity')} />
+              <DateSelector label="Departure Date" date={watch('departureDate')} onSelect={(d) => setValue('departureDate', d!)} />
+              <DateSelector label="Return Date" date={watch('returnDate')} onSelect={(d) => setValue('returnDate', d!)} />
+            </div>
 
-        <div className="flex gap-4 items-center flex-col sm:flex-row">
-          <a
-            className="rounded-full border border-solid border-transparent transition-colors flex items-center justify-center bg-foreground text-background gap-2 hover:bg-[#383838] dark:hover:bg-[#ccc] font-medium text-sm sm:text-base h-10 sm:h-12 px-4 sm:px-5 sm:w-auto"
-            href="https://vercel.com/new?utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-            target="_blank"
-            rel="noopener noreferrer"
-          >
-            <Image
-              className="dark:invert"
-              src="/vercel.svg"
-              alt="Vercel logomark"
-              width={20}
-              height={20}
-            />
-            Deploy now
-          </a>
-          <a
-            className="rounded-full border border-solid border-black/[.08] dark:border-white/[.145] transition-colors flex items-center justify-center hover:bg-[#f2f2f2] dark:hover:bg-[#1a1a1a] hover:border-transparent font-medium text-sm sm:text-base h-10 sm:h-12 px-4 sm:px-5 w-full sm:w-auto md:w-[158px]"
-            href="https://nextjs.org/docs?utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-            target="_blank"
-            rel="noopener noreferrer"
-          >
-            Read our docs
-          </a>
-        </div>
-      </main>
-      <footer className="row-start-3 flex gap-[24px] flex-wrap items-center justify-center">
-        <a
-          className="flex items-center gap-2 hover:underline hover:underline-offset-4"
-          href="https://nextjs.org/learn?utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-          target="_blank"
-          rel="noopener noreferrer"
-        >
-          <Image
-            aria-hidden
-            src="/file.svg"
-            alt="File icon"
-            width={16}
-            height={16}
-          />
-          Learn
-        </a>
-        <a
-          className="flex items-center gap-2 hover:underline hover:underline-offset-4"
-          href="https://vercel.com/templates?framework=next.js&utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-          target="_blank"
-          rel="noopener noreferrer"
-        >
-          <Image
-            aria-hidden
-            src="/window.svg"
-            alt="Window icon"
-            width={16}
-            height={16}
-          />
-          Examples
-        </a>
-        <a
-          className="flex items-center gap-2 hover:underline hover:underline-offset-4"
-          href="https://nextjs.org?utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-          target="_blank"
-          rel="noopener noreferrer"
-        >
-          <Image
-            aria-hidden
-            src="/globe.svg"
-            alt="Globe icon"
-            width={16}
-            height={16}
-          />
-          Go to nextjs.org →
-        </a>
-      </footer>
-    </div>
+            <div className="mt-8">
+              <h2 className="text-2xl font-bold mb-2 text-cta">Day-wise Itinerary</h2>
+              <Button type="button" onClick={addDay} disabled={fields.length >= maxDays}>Add Day Details</Button>
+              <div className="space-y-4 mt-4">
+                {fields.map((field, i) => (
+                  <Card key={field.id} className="bg-lightbg">
+                    <CardHeader>
+                      <CardTitle> Day {i + 1}</CardTitle>
+                    </CardHeader>
+                    <CardContent>
+                      <Activities activities={field.activities} register={register} dayIndex={i} />
+                      <Flights transfers={field.transfers ?? []} travelers={watch('travelers')} update={update} dayIndex={i} field={field} />
+                      <Stays
+                        stays={field.stays ?? []}
+                        departure={departure}
+                        returnDate={returnDate}
+                        update={update}
+                        field={field}
+                        dayIndex={i}
+                        hotelOptions={hotelOptions}
+                      />
+                    </CardContent>
+                    <div className="flex gap-2 px-4 pb-4">
+                      <Button type="button" onClick={() => addActivity(i)}>Add Activity</Button>
+                      <Button type="button" onClick={() => addTransfer(i)} disabled={(field.transfers?.length ?? 0) >= 1}>Add Transfer</Button>
+                      <Button type="button" onClick={() => addStay(i)} disabled={(field.stays?.length ?? 0) >= 1}>Add Stay</Button>
+                      <Button type="button" className="text-red-500" onClick={() => remove(i)}>Remove Day</Button>
+                    </div>
+                  </Card>
+                ))}
+              </div>
+            </div>
+
+            <Button type="submit">Generate Itinerary</Button>
+          </form>
+        </CardContent>
+      </Card>
+    </main>
   );
 }
+
+const InputField = ({ label, ...props }: { label: string; type?: string; [key: string]: any }) => (
+  <div><Label>{label}</Label><Input {...props} /></div>
+);
+
+const DateSelector = ({ label, date, onSelect }: { label: string; date: Date; onSelect: (d: Date) => void }) => (
+  <div>
+    <Label>{label}</Label>
+    <Popover>
+      <PopoverTrigger asChild>
+        <Button variant="outline" className={cn('w-full justify-start text-left font-normal', !date && 'text-muted-foreground')}>
+          {format(date, 'PPP')}
+        </Button>
+      </PopoverTrigger>
+      <PopoverContent className="w-auto p-0">
+        <Calendar mode="single" required={true} selected={date} onSelect={onSelect} initialFocus />
+      </PopoverContent>
+    </Popover>
+  </div>
+);
