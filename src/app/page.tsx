@@ -17,14 +17,14 @@ import { itinerarySchema, Activity, ItineraryFormData } from '@/components/itine
 import { Activities } from '@/components/Activities';
 import { Flights } from '@/components/Flights';
 import { Stays } from '@/components/Stays';
-import { pdf } from '@react-pdf/renderer';
-import { ItineraryPDF } from '@/components/ItineraryPDF';
+import { toast } from 'sonner';
 
 
 const hotelOptions = ["Hotel Taj", "Hotel Oberoi", "Hotel Leela"];
 
 export default function HomePage() {
   const [maxDays, setMaxDays] = useState(1);
+  const [loading, setLoading] = useState(false);
   const form = useForm({
     resolver: zodResolver(itinerarySchema),
     defaultValues: {
@@ -54,7 +54,7 @@ export default function HomePage() {
         title: '',
         description: '',
         price: '',
-        id: uuidv4(),
+        id: uuidv4() as string,
       },
     ];
     update(dayIndex, { ...day, activities: newActivities });
@@ -72,7 +72,7 @@ export default function HomePage() {
     const newTransfers = [
       ...transfers,
       {
-        id: uuidv4(),
+        id: uuidv4() as string,
         date: transferDate,
         flightName: 'Indigo',
         from: departureCity,
@@ -96,7 +96,7 @@ export default function HomePage() {
     const newStays = [
       ...stays,
       {
-        id: uuidv4(),
+        id: uuidv4() as string,
         checkIn,
         checkOut,
         hotel: hotelOptions[0],
@@ -105,15 +105,59 @@ export default function HomePage() {
     update(dayIndex, { ...day, stays: newStays });
   };
 
-  const onSubmit = async (data: ItineraryFormData) => {
-    const blob = await pdf(<ItineraryPDF data={data} />).toBlob();
-    const url = URL.createObjectURL(blob);
-    const a = document.createElement('a');
-    a.href = url;
-    a.download = 'itinerary.pdf';
-    a.click();
-    URL.revokeObjectURL(url);
-    console.log('Itinerary generated successfully', data);
+  const onSubmit = async (itineraryData: ItineraryFormData) => {
+    setLoading(true);
+    try {
+      const response = await fetch('http://localhost:8080/itinerary', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify(itineraryData),
+      });
+
+      if (!response.ok) {
+        throw new Error(`HTTP error! status: ${response.status}`);
+      }
+
+      const data = await response.json();
+      const pdfUrl = data.pdf_url;
+
+      if (pdfUrl) {
+        console.log('Opening PDF URL:', pdfUrl);
+        const newWindow = window.open(pdfUrl, '_blank');
+        if (!newWindow || newWindow.closed || typeof newWindow.closed == 'undefined') {
+          toast.success('PDF generated!', {
+            description: (
+              <a href={pdfUrl} target="_blank" rel="noopener noreferrer" className="text-blue-500 underline">
+                Click here to open PDF
+              </a>
+            ),
+            duration: 10000,
+          });
+        } else {
+          toast.success('PDF generated!', {
+            description: (
+              <a href={pdfUrl} target="_blank" rel="noopener noreferrer" className="text-blue-500 underline">
+                Click here to open PDF
+              </a>
+            ),
+            duration: 10000,
+          });
+        }
+      } else {
+        console.error('PDF URL not received from backend.');
+        toast.error('Failed to generate PDF: No URL received.');
+      }
+      console.log('Itinerary generated successfully', itineraryData);
+    } catch (error) {
+      console.error('Error generating itinerary:', error);
+      toast.error('Error generating itinerary.', {
+        description: error instanceof Error ? error.message : 'An unknown error occurred.',
+      });
+    } finally {
+      setLoading(false);
+    }
   };
 
   return (
@@ -166,7 +210,9 @@ export default function HomePage() {
               </div>
             </div>
 
-            <Button type="submit">Generate Itinerary</Button>
+            <Button type="submit" disabled={loading}>
+              {loading ? 'Generating...' : 'Generate Itinerary'}
+            </Button>
           </form>
         </CardContent>
       </Card>
@@ -178,7 +224,7 @@ const InputField = ({ label, ...props }: { label: string; type?: string; [key: s
   <div><Label>{label}</Label><Input {...props} /></div>
 );
 
-const DateSelector = ({ label, date, onSelect }: { label: string; date: Date; onSelect: (d: Date) => void }) => (
+const DateSelector = ({ label, date, onSelect }: { label: string; date: Date; onSelect: (d: Date | undefined) => void }) => (
   <div>
     <Label>{label}</Label>
     <Popover>

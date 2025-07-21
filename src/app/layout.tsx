@@ -1,6 +1,7 @@
 import type { Metadata } from "next";
 import { Geist, Geist_Mono } from "next/font/google";
 import "./globals.css";
+import { Toaster } from "@/components/ui/sonner";
 
 const geistSans = Geist({
   variable: "--font-geist-sans",
@@ -32,6 +33,7 @@ export default function RootLayout({
           <img src="/vigovia.png" alt="Vigovia Logo" className="h-16" />
         </header>
         {children}
+                <Toaster />
 
         <footer className="w-full border-t mt-10 py-8">
           <div className="w-auto mx-auto grid grid-cols-1 md:grid-cols-3 gap-8 px-50 text-center md:text-left">
